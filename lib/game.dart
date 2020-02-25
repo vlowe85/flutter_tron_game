@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,10 +7,10 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_tron/controls.dart';
 import 'package:flutter_tron/direction.dart';
 import 'package:flutter_tron/player.dart';
+import 'package:flutter_tron/player_path_painter.dart';
 import 'package:flutter_tron/player_type.dart';
 import 'package:flutter_tron/point.dart';
 import 'package:flutter_tron/constants.dart';
-import 'package:flutter_tron/player_piece.dart';
 
 class Game extends StatefulWidget {
   @override
@@ -32,13 +31,15 @@ class _GameState extends State<Game> {
   List<Player> _players;
   PlayerType _winner;
   FocusNode _focusNode = FocusNode();
+  int _score;
 
   @override
   void initState() {
     super.initState();
 
     _gameType = GameType.LIGHT_CYCLE;
-    _gameMode = kIsWeb ? GameMode.TWO_PLAYER : GameMode.SINGLE_PLAYER;
+    //_gameMode = kIsWeb ? GameMode.TWO_PLAYER : GameMode.SINGLE_PLAYER;
+    _gameMode = GameMode.SINGLE_PLAYER;
     _gameState = GameState.PLAYING;
 
     // add players
@@ -103,36 +104,43 @@ class _GameState extends State<Game> {
     switch (_gameState) {
 
       case GameState.PLAYING:
-//        List<Positioned> playerPieces = List();
-//        _players.forEach((i) {
-//          i.positions.forEach((p) {
-//            playerPieces.add(Positioned(
-//              child: PlayerPiece(colour: i.colour),
-//              left: p.x * PLAYER_SIZE,
-//              top: p.y * PLAYER_SIZE,
-//            ));
-//          });
-//        });
-//        child = Stack(children: playerPieces);
-//
-      List<Widget> _painters = List();
-      _players.forEach((i) {
-        _painters.add(Container(
-          constraints: BoxConstraints.expand(),
-          child: CustomPaint(
-            painter: MyPainter(pointsList:i.positions, colour: i.colour),
-          ),
-        ));
-      });
+        List<Widget> _children = List();
+        if(_gameMode == GameMode.SINGLE_PLAYER) {
+          _children.add(Positioned(
+            top: 10,
+            left: LEVEL_SIZE / 1.3,
+            child: Text("SCORE $_score", style: TextStyle(fontSize: 18, color: Colors.red)),
+          ));
+        }
+        List<Widget> _painters = List();
+        _players.forEach((i) {
+          _painters.add(Container(
+            constraints: BoxConstraints.expand(),
+            child: CustomPaint(
+              painter: PlayerPathPainter(pointsList:i.positions, colour: i.colour),
+            ),
+          ));
+        });
 
-      child = Stack(
-        children: _painters,
-      );
-      break;
+        child = Stack(
+          children: [..._painters, ..._children],
+        );
+        break;
 
       case GameState.GAME_OVER:
         _timer.cancel();
-        child = Text("Game Over.. Player ${_winner} wins!", style: TextStyle(color: Colors.greenAccent),);
+        child = Center(child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Text("Game Over", style: TextStyle(fontSize: 28, color: Colors.greenAccent)),
+            Divider(),
+            (_gameMode == GameMode.TWO_PLAYER) ?
+              Text("Player ${_winner == PlayerType.PLAYER_ONE ?'one':'two'} wins", style: TextStyle(fontSize: 28, color: Colors.greenAccent))
+                : Text("Your score $_score", style: TextStyle(fontSize: 28, color: Colors.white)) ,
+            Divider(),
+            Text("Press RETURN to play again", style: TextStyle(fontSize: 18, color: Colors.greenAccent)),
+          ],
+        ));
         break;
 
     }
@@ -165,6 +173,7 @@ class _GameState extends State<Game> {
     _resetPlayers();
     _generateStartPositions();
     _winner = null;
+    _score = 0;
     _changeGameState(GameState.PLAYING);
     _timer = Timer.periodic(Duration(milliseconds: 50), _onTimerTick);
   }
@@ -183,6 +192,7 @@ class _GameState extends State<Game> {
         i.positions.insert(0, _getNewPosition(i.direction, i.positions));
         //i.positions.removeLast();
       });
+      _score += 1;
     });
   }
 
@@ -203,6 +213,7 @@ class _GameState extends State<Game> {
   bool _isPlayerCollision() {
     bool hasCollision = false;
     List allPoints = [];
+
     _players.forEach((i) {
       // add all but current position
       List pointsToAdd = List.from(i.positions);
@@ -276,7 +287,6 @@ class _GameState extends State<Game> {
       case GameState.GAME_OVER:
         if (keyValues.map[event.logicalKey.keyId] == KeyboardPress.RETURN) {
           _prepareStartGame();
-          _changeGameState(GameState.PLAYING);
         }
         break;
     }
@@ -344,7 +354,6 @@ class _GameState extends State<Game> {
         break;
       case GameState.GAME_OVER:
         _prepareStartGame();
-        _changeGameState(GameState.PLAYING);
         break;
     }
   }
@@ -459,37 +468,5 @@ class _GameState extends State<Game> {
       });
     });
   }
-
-
-
 }
 
-class MyPainter extends CustomPainter {
-
-  List<Point> pointsList;
-  Color colour;
-  List<Offset> offsetPoints = List();
-
-  MyPainter({this.pointsList, this.colour});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-
-    pointsList.forEach((i) {
-      offsetPoints.add(Offset(i.x * 5, i.y * 5));
-    });
-    final pointMode = ui.PointMode.polygon;
-    final points = offsetPoints;
-    final paint = Paint()
-      ..color = colour
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
-    canvas.drawPoints(pointMode, points, paint);
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter old) {
-    return true;
-
-  }
-}
